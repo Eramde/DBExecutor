@@ -23,7 +23,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-package tk.sottech.misc;
+package tk.sot_tech.misc;
 
 /**
  *
@@ -31,7 +31,7 @@ package tk.sottech.misc;
  */
 public class Misc {
 	
-	private static String OWN_PACKAGE = "tk.sottech";
+	private static String OWN_PACKAGE = "tk.sot_tech";
 	
 	public static void setOwnPackage(String pkg){
 		if(pkg != null) OWN_PACKAGE = pkg;

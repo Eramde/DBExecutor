@@ -23,7 +23,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-package tk.sottech.dbexecutor;
+package tk.sot_tech.dbexecutor;
 
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -32,7 +32,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import static tk.sottech.misc.Misc.ownStack;
+import static tk.sot_tech.misc.Misc.ownStack;
 
 /**
  *
