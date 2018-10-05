@@ -30,7 +30,6 @@ package tk.sot_tech.dbexecutor;
  * @author sot
  * @param <In>
  */
-@FunctionalInterface
 public interface DBTypeConverter<In> {
 	public Object convert(In data, String columnName);
 }
