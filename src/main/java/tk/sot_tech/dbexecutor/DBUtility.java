@@ -33,6 +33,7 @@ import java.util.Map.Entry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import static tk.sot_tech.misc.Misc.ownStack;
+import tk.sot_tech.misc.Pair;
 
 /**
  *
@@ -40,12 +41,13 @@ import static tk.sot_tech.misc.Misc.ownStack;
  */
 public final class DBUtility {
 
-	private final HashMap<Class, DBTypeConverter> converters = 
-							new HashMap<Class, DBTypeConverter>(DEFAULT_CONVERTERS);
+	private final HashMap<Class, DBTypeConverter> converters
+												  = new HashMap<Class, DBTypeConverter>(
+			DEFAULT_CONVERTERS);
 	public static final Map<Class, DBTypeConverter> DEFAULT_CONVERTERS;
 	private String url, login, password;
-	private final HashMap<Class, Integer> customSqlTypeMap = 
-							new HashMap<Class, Integer>(DEFAULT_SQL_TYPE_MAP);
+	private final HashMap<Class, Integer> customSqlTypeMap
+										  = new HashMap<Class, Integer>(DEFAULT_SQL_TYPE_MAP);
 	public static final Map<Class, Integer> DEFAULT_SQL_TYPE_MAP;
 	private boolean fixAutoCommitIssue = false;
 	private static final Logger LOG = Logger.getLogger(DBUtility.class.getName());
@@ -195,10 +197,10 @@ public final class DBUtility {
 			statement = isCallable ? con.prepareCall(query) : con.
 				prepareStatement(query);
 			if (params != null) {
-				HashMap<DBParameter, Integer> sqlParams = getSqlTypes(params);
-				for (Map.Entry<DBParameter, Integer> p : sqlParams.entrySet()) {
-					DBParameter param = p.getKey();
-					int sqlType = p.getValue();
+				ArrayList<Pair<DBParameter, Integer>> sqlParams = getSqlTypes(params);
+				for (Pair<DBParameter, Integer> p : sqlParams) {
+					DBParameter param = p.getLeft();
+					int sqlType = p.getRight();
 					Object data = param.getData();
 					if (param.isOut()) {
 						outParamIndexes.add(i - 1);
@@ -207,7 +209,11 @@ public final class DBUtility {
 						if (data == null) {
 							statement.setNull(i++, Types.NULL); //TODO: check
 						} else {
-							statement.setObject(i++, data, sqlType);
+							if (sqlType == Types.OTHER) {
+								statement.setObject(i++, data);
+							} else {
+								statement.setObject(i++, data, sqlType);
+							}
 						}
 					}
 				}
@@ -306,19 +312,30 @@ public final class DBUtility {
 
 	}
 
-	private HashMap<DBParameter, Integer> getSqlTypes(DBParameter[] params) {
-		HashMap<DBParameter, Integer> out = new HashMap<DBParameter, Integer>();
-		int i = 0;
+	private ArrayList<Pair<DBParameter, Integer>> getSqlTypes(DBParameter[] params) {
+		ArrayList<Pair<DBParameter, Integer>> out = new ArrayList<Pair<DBParameter, Integer>>();
 		for (DBParameter p : params) {
 			Object param = p.getLeft();
-			Integer type = p.isOut() ? Types.OTHER : param == null ? Types.OTHER : customSqlTypeMap.
-				get(param.getClass());
-			if (type == null) {
-				throw new IllegalArgumentException(
-					"Unknown SQL type for parameter " + i + "\nType Map: " + customSqlTypeMap);
+			Integer type;
+			if (p.isOut()) {
+				type = Types.OTHER;
+			} else {
+				if (param == null) {
+					type = Types.NULL;
+				} else {
+					Class clazz = param.getClass();
+					if (customSqlTypeMap.containsKey(clazz)) {
+						type = customSqlTypeMap.get(clazz);
+					} else {
+						LOG.log(Level.WARNING,
+								"Unable to find SQL type mapping for class {0} falling back to Types.OTHER",
+								clazz.getName());
+						type = Types.OTHER;
+					}
+				}
 			}
-			out.put(p, type);
-			++i;
+			Pair<DBParameter, Integer> pair = new Pair<DBParameter, Integer>(p, type);
+			out.add(pair);
 		}
 		return out;
 	}
