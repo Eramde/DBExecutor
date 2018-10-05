@@ -64,7 +64,6 @@ public final class DBUtility {
 		tmp.put(byte[].class, Types.VARBINARY);
 		tmp.put(Date.class, Types.DATE);
 		tmp.put(Time.class, Types.TIME);
-		tmp.put(java.util.Date.class, Types.TIMESTAMP);
 		tmp.put(Timestamp.class, Types.TIMESTAMP);
 
 		DEFAULT_SQL_TYPE_MAP = Collections.unmodifiableMap(tmp);
