@@ -49,7 +49,7 @@ public final class DBUtility {
 	private final HashMap<Class, Integer> customSqlTypeMap
 										  = new HashMap<Class, Integer>(DEFAULT_SQL_TYPE_MAP);
 	public static final Map<Class, Integer> DEFAULT_SQL_TYPE_MAP;
-	private boolean fixAutoCommitIssue = false;
+	private boolean fixAutoCommitIssue = false, setNullAsSubstitution = false;
 	private static final Logger LOG = Logger.getLogger(DBUtility.class.getName());
 
 	static {
@@ -132,6 +132,15 @@ public final class DBUtility {
 		return this;
 	}
 
+	public boolean isSetNullAsSubstitution() {
+		return setNullAsSubstitution;
+	}
+
+	public DBUtility setSetNullAsSubstitution(boolean setNullAsSubstitution) {
+		this.setNullAsSubstitution = setNullAsSubstitution;
+		return this;
+	}
+
 	public String getUrl() {
 		return url;
 	}
@@ -194,26 +203,26 @@ public final class DBUtility {
 		}
 		PreparedStatement statement = null;
 		try {
-			statement = isCallable ? con.prepareCall(query) : con.
-				prepareStatement(query);
-			if (params != null) {
-				ArrayList<Pair<DBParameter, Integer>> sqlParams = getSqlTypes(params);
-				for (Pair<DBParameter, Integer> p : sqlParams) {
-					DBParameter param = p.getLeft();
-					int sqlType = p.getRight();
-					Object data = param.getData();
-					if (param.isOut()) {
-						outParamIndexes.add(i - 1);
-						((CallableStatement) statement).registerOutParameter(i++, sqlType);
+			ArrayList<Pair<DBParameter, Integer>> sqlParams = getSqlTypes(params);
+			String preparedQuery = setNullAsSubstitution? replaceNulls(query, sqlParams) : query;
+			statement = isCallable ? con.prepareCall(preparedQuery) : 
+						con.prepareStatement(preparedQuery);
+
+			for (Pair<DBParameter, Integer> p : sqlParams) {
+				DBParameter param = p.getLeft();
+				int sqlType = p.getRight();
+				Object data = param.getData();
+				if (param.isOut()) {
+					outParamIndexes.add(i - 1);
+					((CallableStatement) statement).registerOutParameter(i++, sqlType);
+				} else {
+					if (data == null) {
+						statement.setNull(i++, Types.NULL);
 					} else {
-						if (data == null) {
-							statement.setNull(i++, Types.NULL); //TODO: check
+						if (sqlType == Types.OTHER) {
+							statement.setObject(i++, data);
 						} else {
-							if (sqlType == Types.OTHER) {
-								statement.setObject(i++, data);
-							} else {
-								statement.setObject(i++, data, sqlType);
-							}
+							statement.setObject(i++, data, sqlType);
 						}
 					}
 				}
@@ -312,30 +321,56 @@ public final class DBUtility {
 
 	}
 
-	private ArrayList<Pair<DBParameter, Integer>> getSqlTypes(DBParameter[] params) {
-		ArrayList<Pair<DBParameter, Integer>> out = new ArrayList<Pair<DBParameter, Integer>>();
-		for (DBParameter p : params) {
-			Object param = p.getLeft();
-			Integer type;
-			if (p.isOut()) {
-				type = Types.OTHER;
-			} else {
-				if (param == null) {
-					type = Types.NULL;
-				} else {
-					Class clazz = param.getClass();
-					if (customSqlTypeMap.containsKey(clazz)) {
-						type = customSqlTypeMap.get(clazz);
-					} else {
-						LOG.log(Level.WARNING,
-								"Unable to find SQL type mapping for class {0} falling back to Types.OTHER",
-								clazz.getName());
-						type = Types.OTHER;
-					}
+	private String replaceNulls(String query, ArrayList<Pair<DBParameter, Integer>> sqlParams) {
+		ArrayList<Pair<DBParameter, Integer>> trimmedParams = new ArrayList<Pair<DBParameter, Integer>>();
+		String newQuery = query;
+		int index = 0;
+		for(Pair<DBParameter, Integer> param : sqlParams){
+			index = newQuery.indexOf('?', index);
+			if(param.getRight() != Types.NULL){
+				trimmedParams.add(param);
+			}
+			else{
+				
+				int maxIndex = newQuery.length() - 1;
+				if(index >= 0){
+					newQuery = newQuery.substring(0, index) + " NULL " + 
+							   (index == maxIndex ? "" : newQuery.substring(index + 1, newQuery.length()));	
 				}
 			}
-			Pair<DBParameter, Integer> pair = new Pair<DBParameter, Integer>(p, type);
-			out.add(pair);
+			++index;
+		}
+		sqlParams.clear();
+		sqlParams.addAll(trimmedParams);
+		return newQuery;
+	}
+
+	private ArrayList<Pair<DBParameter, Integer>> getSqlTypes(DBParameter[] params) {
+		ArrayList<Pair<DBParameter, Integer>> out = new ArrayList<Pair<DBParameter, Integer>>();
+		if (params != null) {
+			for (DBParameter p : params) {
+				Object param = p.getLeft();
+				Integer type;
+				if (p.isOut()) {
+					type = Types.OTHER;
+				} else {
+					if (param == null) {
+						type = Types.NULL;
+					} else {
+						Class clazz = param.getClass();
+						if (customSqlTypeMap.containsKey(clazz)) {
+							type = customSqlTypeMap.get(clazz);
+						} else {
+							LOG.log(Level.WARNING,
+									"Unable to find SQL type mapping for class {0} falling back to Types.OTHER",
+									clazz.getName());
+							type = Types.OTHER;
+						}
+					}
+				}
+				Pair<DBParameter, Integer> pair = new Pair<DBParameter, Integer>(p, type);
+				out.add(pair);
+			}
 		}
 		return out;
 	}
