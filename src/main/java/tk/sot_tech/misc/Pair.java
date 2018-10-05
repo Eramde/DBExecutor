@@ -25,8 +25,6 @@
  */
 package tk.sot_tech.misc;
 
-import java.util.Objects;
-
 /**
  *
  * @author sot
@@ -61,12 +59,12 @@ public class Pair <V0, V1> {
 	public void setRight(V1 right) {
 		this.right = right;
 	}
-	
+
 	@Override
 	public int hashCode() {
-		int hash = 7;
-		hash = 59 * hash + Objects.hashCode(this.left);
-		hash = 59 * hash + Objects.hashCode(this.right);
+		int hash = 3;
+		hash = 79 * hash + (this.left != null ? this.left.hashCode() : 0);
+		hash = 79 * hash + (this.right != null ? this.right.hashCode() : 0);
 		return hash;
 	}
 
@@ -82,11 +80,13 @@ public class Pair <V0, V1> {
 			return false;
 		}
 		final Pair<?, ?> other = (Pair<?, ?>) obj;
-		if (!Objects.equals(this.left, other.left)) {
+		if (this.left != other.left && (this.left == null || !this.left.equals(other.left))) {
 			return false;
 		}
-		return Objects.equals(this.right, other.right);
+		return !(this.right != other.right && (this.right == null || !this.right.equals(other.right)));
 	}
+	
+	
 
 	@Override
 	public String toString() {

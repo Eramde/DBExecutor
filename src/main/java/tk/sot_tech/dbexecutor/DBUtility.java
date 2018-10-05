@@ -43,39 +43,41 @@ public final class DBUtility {
 	private final Map<Class, DBTypeConverter> converters = DEFAULT_CONVERTERS;
 	public static final Map<Class, DBTypeConverter> DEFAULT_CONVERTERS;
 	private String url, login, password;
-	private Map<Class, SQLType> customSqlTypeMap = DEFAULT_SQL_TYPE_MAP;
-	public static final Map<Class, SQLType> DEFAULT_SQL_TYPE_MAP;
+	private Map<Class, Integer> customSqlTypeMap = DEFAULT_SQL_TYPE_MAP;
+	public static final Map<Class, Integer> DEFAULT_SQL_TYPE_MAP;
 	private boolean fixAutoCommitIssue = false;
 	private static final Logger LOG = Logger.getLogger(DBUtility.class.getName());
 
 	static {
-		HashMap<Class, JDBCType> tmp = new HashMap<>();
-		tmp.put(String.class, JDBCType.VARCHAR);
-		tmp.put(BigDecimal.class, JDBCType.NUMERIC);
-		tmp.put(Boolean.class, JDBCType.BIT);
-		tmp.put(Byte.class, JDBCType.TINYINT);
-		tmp.put(Short.class, JDBCType.SMALLINT);
-		tmp.put(Integer.class, JDBCType.INTEGER);
-		tmp.put(Long.class, JDBCType.BIGINT);
-		tmp.put(Float.class, JDBCType.REAL);
-		tmp.put(Double.class, JDBCType.DOUBLE);
-		tmp.put(byte[].class, JDBCType.VARBINARY);
-		tmp.put(Date.class, JDBCType.DATE);
-		tmp.put(Time.class, JDBCType.TIME);
-		tmp.put(Timestamp.class, JDBCType.TIMESTAMP);
+		HashMap<Class, Integer> tmp = new HashMap<Class, Integer>();
+		tmp.put(String.class, Types.VARCHAR);
+		tmp.put(BigDecimal.class, Types.NUMERIC);
+		tmp.put(Boolean.class, Types.BIT);
+		tmp.put(Byte.class, Types.TINYINT);
+		tmp.put(Short.class, Types.SMALLINT);
+		tmp.put(Integer.class, Types.INTEGER);
+		tmp.put(Long.class, Types.BIGINT);
+		tmp.put(Float.class, Types.REAL);
+		tmp.put(Double.class, Types.DOUBLE);
+		tmp.put(byte[].class, Types.VARBINARY);
+		tmp.put(Date.class, Types.DATE);
+		tmp.put(Time.class, Types.TIME);
+		tmp.put(Timestamp.class, Types.TIMESTAMP);
 
 		DEFAULT_SQL_TYPE_MAP = Collections.unmodifiableMap(tmp);
 
-		HashMap<Class, DBTypeConverter> tmp0 = new HashMap<>();
+		HashMap<Class, DBTypeConverter> tmp0 = new HashMap<Class, DBTypeConverter>();
 		tmp0.put(ResultSet.class, new DBTypeConverter<ResultSet>() {
 
-				 private final DBTypeConverter<ResultSet> RESULT_SET_CONVERTER = (ResultSet data,
-																				  String columnName) -> {
-					 try {
-						 return convertResultSetToHashMaps(data, null);
-					 } catch (SQLException ex) {
-						 LOG.log(Level.SEVERE, ownStack(ex));
-						 return new ArrayList<>();
+				 private final DBTypeConverter<ResultSet> RESULT_SET_CONVERTER = new DBTypeConverter<ResultSet>() {
+					 @Override
+					 public Object convert(ResultSet data, String columnName) {
+						 try {
+							 return convertResultSetToHashMaps(data, null);
+						 } catch (SQLException ex) {
+							 LOG.log(Level.SEVERE, ownStack(ex));
+							 return new ArrayList<HashMap<String, Object>>();
+						 }
 					 }
 				 };
 
@@ -108,7 +110,7 @@ public final class DBUtility {
 		return converters;
 	}
 
-	public Map<Class, SQLType> getCustomSqlTypeMap() {
+	public Map<Class, Integer> getCustomSqlTypeMap() {
 		return customSqlTypeMap;
 	}
 
@@ -121,7 +123,7 @@ public final class DBUtility {
 		return this;
 	}
 
-	public DBUtility setCustomSqlTypeMap(Map<Class, SQLType> customSqlTypeMap) {
+	public DBUtility setCustomSqlTypeMap(Map<Class, Integer> customSqlTypeMap) {
 		if (customSqlTypeMap == null || customSqlTypeMap.isEmpty()) {
 			throw new IllegalArgumentException("SQL map cannot be empty or null");
 		}
@@ -156,15 +158,27 @@ public final class DBUtility {
 				dbParams[i++] = new DBParameter(p);
 			}
 		}
-		try (Connection con = DriverManager.getConnection(url, login, password)) {
+		Connection con = null;
+		try {
+			con = DriverManager.getConnection(url, login, password);
 			return execute(con, false, query, dbParams);
+		} finally {
+			if (con != null) {
+				con.close();
+			}
 		}
 	}
 
 	public ArrayList<HashMap<String, Object>> executeCall(String query, DBParameter... params)
 		throws SQLException {
-		try (Connection con = DriverManager.getConnection(url, login, password)) {
+		Connection con = null;
+		try {
+			con = DriverManager.getConnection(url, login, password);
 			return execute(con, true, query, params);
+		} finally {
+			if (con != null) {
+				con.close();
+			}
 		}
 	}
 
@@ -172,19 +186,21 @@ public final class DBUtility {
 													  String query, DBParameter... params) throws
 		SQLException {
 		int i = 1;
-		ArrayList<HashMap<String, Object>> values = new ArrayList<>();
-		ArrayList<Integer> outParamIndexes = new ArrayList<>();
+		ArrayList<HashMap<String, Object>> values = new ArrayList<HashMap<String, Object>>();
+		ArrayList<Integer> outParamIndexes = new ArrayList<Integer>();
 		if (fixAutoCommitIssue) {
 			con.setAutoCommit(false);
 		}
-		try (PreparedStatement statement = isCallable ? con.prepareCall(query) : con.
-			prepareStatement(query)) {
+		PreparedStatement statement = null;
+		try {
+			statement = isCallable ? con.prepareCall(query) : con.
+				prepareStatement(query);
 			if (params != null) {
 				HashMap<DBParameter, Integer> sqlParams = getSqlTypes(params);
 				for (Map.Entry<DBParameter, Integer> p : sqlParams.entrySet()) {
 					DBParameter param = p.getKey();
 					int sqlType = p.getValue();
-					Object data = param.getLeft();
+					Object data = param.getData();
 					if (param.isOut()) {
 						outParamIndexes.add(i - 1);
 						((CallableStatement) statement).registerOutParameter(i++, sqlType);
@@ -198,12 +214,22 @@ public final class DBUtility {
 				}
 			}
 			if (statement.execute()) {
-				try (ResultSet rs = statement.getResultSet()) {
+				ResultSet rs = null;
+				try {
+					rs = statement.getResultSet();
 					values = convertResultSetToHashMaps(rs, converters);
+				} finally {
+					if (rs != null) {
+						rs.close();
+					}
 				}
 			}
 			for (int index : outParamIndexes) {
 				params[index].setData(((CallableStatement) statement).getObject(index + 1));
+			}
+		} finally {
+			if (statement != null) {
+				statement.close();
 			}
 		}
 		if (fixAutoCommitIssue) {
@@ -219,11 +245,11 @@ public final class DBUtility {
 	public static ArrayList<HashMap<String, Object>> convertResultSetToHashMaps(ResultSet rs,
 																				Map<Class, DBTypeConverter> converters)
 		throws SQLException {
-		ArrayList<HashMap<String, Object>> values = new ArrayList<>();
+		ArrayList<HashMap<String, Object>> values = new ArrayList<HashMap<String, Object>>();
 		if (rs != null) {
 			ResultSetMetaData metaData = rs.getMetaData();
 			while (rs.next()) {
-				HashMap<String, Object> record = new HashMap<>();
+				HashMap<String, Object> record = new HashMap<String, Object>();
 				for (int i = 1; i <= metaData.getColumnCount(); ++i) {
 					String name = metaData.getColumnName(i);
 					Object data = rs.getObject(i);
@@ -235,8 +261,7 @@ public final class DBUtility {
 									data = entry.getValue().convert(data, name);
 								}
 							}
-						}
-						else{
+						} else {
 							data = converter.convert(data, name);
 						}
 					}
@@ -262,7 +287,7 @@ public final class DBUtility {
 	 * @throws IllegalAccessException
 	 */
 	private static void registerJDBC(String urlOrDriver) throws SQLException,
-																ClassNotFoundException{
+																ClassNotFoundException {
 		Enumeration<Driver> drivers = DriverManager.getDrivers();
 		while (drivers.hasMoreElements()) {
 			Driver driver = drivers.nextElement();
@@ -274,19 +299,21 @@ public final class DBUtility {
 		try {
 			Driver loadDriver = (Driver) Class.forName(urlOrDriver).newInstance();
 			DriverManager.registerDriver(loadDriver);
-		} catch (InstantiationException | IllegalAccessException ex) {
+		} catch (InstantiationException ex) {
+			LOG.log(Level.SEVERE, ownStack(ex));
+		} catch (IllegalAccessException ex) {
 			LOG.log(Level.SEVERE, ownStack(ex));
 		}
-		
+
 	}
 
 	private HashMap<DBParameter, Integer> getSqlTypes(DBParameter[] params) {
-		HashMap<DBParameter, Integer> out = new HashMap<>();
+		HashMap<DBParameter, Integer> out = new HashMap<DBParameter, Integer>();
 		int i = 0;
 		for (DBParameter p : params) {
 			Object param = p.getLeft();
-			Integer type = p.isOut() ? Types.OTHER : customSqlTypeMap.get(param.getClass()).
-				getVendorTypeNumber();
+			Integer type = p.isOut() ? Types.OTHER : param == null ? Types.OTHER : customSqlTypeMap.
+				get(param.getClass());
 			if (type == null) {
 				throw new IllegalArgumentException(
 					"Unknown SQL type for parameter " + i + "\nType Map: " + customSqlTypeMap);
