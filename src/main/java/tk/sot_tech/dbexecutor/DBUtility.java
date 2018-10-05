@@ -40,10 +40,12 @@ import static tk.sot_tech.misc.Misc.ownStack;
  */
 public final class DBUtility {
 
-	private final Map<Class, DBTypeConverter> converters = DEFAULT_CONVERTERS;
+	private final HashMap<Class, DBTypeConverter> converters = 
+							new HashMap<Class, DBTypeConverter>(DEFAULT_CONVERTERS);
 	public static final Map<Class, DBTypeConverter> DEFAULT_CONVERTERS;
 	private String url, login, password;
-	private Map<Class, Integer> customSqlTypeMap = DEFAULT_SQL_TYPE_MAP;
+	private final HashMap<Class, Integer> customSqlTypeMap = 
+							new HashMap<Class, Integer>(DEFAULT_SQL_TYPE_MAP);
 	public static final Map<Class, Integer> DEFAULT_SQL_TYPE_MAP;
 	private boolean fixAutoCommitIssue = false;
 	private static final Logger LOG = Logger.getLogger(DBUtility.class.getName());
@@ -102,7 +104,7 @@ public final class DBUtility {
 		return dbu;
 	}
 
-	public DBUtility addTypeConverter(Class clazz, DBTypeConverter converter) {
+	public DBUtility setTypeConverter(Class clazz, DBTypeConverter converter) {
 		converters.put(clazz, converter);
 		return this;
 	}
@@ -115,20 +117,17 @@ public final class DBUtility {
 		return customSqlTypeMap;
 	}
 
+	public DBUtility setCustomSqlType(Class clazz, int sqlType) {
+		customSqlTypeMap.put(clazz, sqlType);
+		return this;
+	}
+
 	public boolean isFixAutoCommitIssue() {
 		return fixAutoCommitIssue;
 	}
 
 	public DBUtility setFixAutoCommitIssue(boolean fixAutoCommitIssue) {
 		this.fixAutoCommitIssue = fixAutoCommitIssue;
-		return this;
-	}
-
-	public DBUtility setCustomSqlTypeMap(Map<Class, Integer> customSqlTypeMap) {
-		if (customSqlTypeMap == null || customSqlTypeMap.isEmpty()) {
-			throw new IllegalArgumentException("SQL map cannot be empty or null");
-		}
-		this.customSqlTypeMap = customSqlTypeMap;
 		return this;
 	}
 
