@@ -50,7 +50,7 @@ public final class DBUtility {
 	private static final Logger LOG = Logger.getLogger(DBUtility.class.getName());
 	private static final DBTypeConverter RESULT_SET_CONVERTER = (Object data, String columnName) -> {
 		try {
-			return convertResultSetToHashMaps((ResultSet)data, null);
+			return convertResultSetToHashMaps((ResultSet) data, null);
 		} catch (SQLException ex) {
 			LOG.log(Level.SEVERE, ownStack(ex));
 			return new ArrayList<HashMap<String, Object>>();
@@ -208,7 +208,7 @@ public final class DBUtility {
 				}
 			}
 			for (int index : outParamIndexes) {
-				params[index].setData(((CallableStatement) statement).getObject(index + 1));
+				params[index].setData(convertObject(((CallableStatement) statement).getObject(index + 1), null, converters));
 			}
 		} finally {
 			if (statement != null) {
@@ -235,25 +235,30 @@ public final class DBUtility {
 				HashMap<String, Object> record = new HashMap<>();
 				for (int i = 1; i <= metaData.getColumnCount(); ++i) {
 					String name = metaData.getColumnName(i);
-					Object data = rs.getObject(i);
-					if (data != null && converters != null) {
-						DBTypeConverter converter = converters.get(data.getClass());
-						if (converter == null) {
-							for (Entry<Class, DBTypeConverter> entry : converters.entrySet()) {
-								if (entry.getKey().isInstance(data)) {
-									data = entry.getValue().convert(data, name);
-								}
-							}
-						} else {
-							data = converter.convert(data, name);
-						}
-					}
+					Object data = convertObject(rs.getObject(i), name, converters);
 					record.put(name, data);
 				}
 				values.add(record);
 			}
 		}
 		return values;
+	}
+
+	public static Object convertObject(Object in, String name, Map<Class, DBTypeConverter> converters) {
+		Object out = null;
+		if (in != null && converters != null) {
+			DBTypeConverter converter = converters.get(in.getClass());
+			if (converter == null) {
+				for (Entry<Class, DBTypeConverter> entry : converters.entrySet()) {
+					if (entry.getKey().isInstance(in)) {
+						out = entry.getValue().convert(in, name);
+					}
+				}
+			} else {
+				out = converter.convert(in, name);
+			}
+		}
+		return out;
 	}
 
 	/**
@@ -301,7 +306,8 @@ public final class DBUtility {
 				int maxIndex = newQuery.length() - 1;
 				if (index >= 0) {
 					newQuery = newQuery.substring(0, index) + " NULL "
-							   + (index == maxIndex ? "" : newQuery.substring(index + 1, newQuery.length()));
+							   + (index == maxIndex ? "" : newQuery.substring(index + 1, newQuery.
+																			  length()));
 				}
 			}
 			++index;
