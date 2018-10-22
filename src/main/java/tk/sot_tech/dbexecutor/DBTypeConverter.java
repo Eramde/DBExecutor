@@ -28,8 +28,7 @@ package tk.sot_tech.dbexecutor;
 /**
  *
  * @author sot
- * @param <In>
  */
-public interface DBTypeConverter<In> {
-	public Object convert(In data, String columnName);
+public interface DBTypeConverter{
+	public Object convert(Object data, String columnName);
 }

@@ -41,19 +41,24 @@ import tk.sot_tech.misc.Pair;
  */
 public final class DBUtility {
 
-	private final HashMap<Class, DBTypeConverter> converters
-												  = new HashMap<Class, DBTypeConverter>(
-			DEFAULT_CONVERTERS);
+	private final HashMap<Class, DBTypeConverter> converters = new HashMap<>(DEFAULT_CONVERTERS);
 	public static final Map<Class, DBTypeConverter> DEFAULT_CONVERTERS;
 	private String url, login, password;
-	private final HashMap<Class, Integer> customSqlTypeMap
-										  = new HashMap<Class, Integer>(DEFAULT_SQL_TYPE_MAP);
+	private final HashMap<Class, Integer> customSqlTypeMap = new HashMap<>(DEFAULT_SQL_TYPE_MAP);
 	public static final Map<Class, Integer> DEFAULT_SQL_TYPE_MAP;
 	private boolean fixAutoCommitIssue = false, setNullAsSubstitution = false;
 	private static final Logger LOG = Logger.getLogger(DBUtility.class.getName());
+	private static final DBTypeConverter RESULT_SET_CONVERTER = (Object data, String columnName) -> {
+		try {
+			return convertResultSetToHashMaps((ResultSet)data, null);
+		} catch (SQLException ex) {
+			LOG.log(Level.SEVERE, ownStack(ex));
+			return new ArrayList<HashMap<String, Object>>();
+		}
+	};
 
 	static {
-		HashMap<Class, Integer> tmp = new HashMap<Class, Integer>();
+		HashMap<Class, Integer> tmp = new HashMap<>();
 		tmp.put(String.class, Types.VARCHAR);
 		tmp.put(BigDecimal.class, Types.NUMERIC);
 		tmp.put(Boolean.class, Types.BIT);
@@ -70,26 +75,8 @@ public final class DBUtility {
 
 		DEFAULT_SQL_TYPE_MAP = Collections.unmodifiableMap(tmp);
 
-		HashMap<Class, DBTypeConverter> tmp0 = new HashMap<Class, DBTypeConverter>();
-		tmp0.put(ResultSet.class, new DBTypeConverter<ResultSet>() {
-
-				 private final DBTypeConverter<ResultSet> RESULT_SET_CONVERTER = new DBTypeConverter<ResultSet>() {
-					 @Override
-					 public Object convert(ResultSet data, String columnName) {
-						 try {
-							 return convertResultSetToHashMaps(data, null);
-						 } catch (SQLException ex) {
-							 LOG.log(Level.SEVERE, ownStack(ex));
-							 return new ArrayList<HashMap<String, Object>>();
-						 }
-					 }
-				 };
-
-				 @Override
-				 public Object convert(ResultSet data, String columnName) {
-					 return RESULT_SET_CONVERTER.convert(data, columnName);
-				 }
-			 });
+		HashMap<Class, DBTypeConverter> tmp0 = new HashMap<>();
+		tmp0.put(ResultSet.class, RESULT_SET_CONVERTER::convert);
 		DEFAULT_CONVERTERS = Collections.unmodifiableMap(tmp0);
 	}
 
@@ -168,27 +155,15 @@ public final class DBUtility {
 				dbParams[i++] = new DBParameter(p);
 			}
 		}
-		Connection con = null;
-		try {
-			con = DriverManager.getConnection(url, login, password);
+		try (Connection con = DriverManager.getConnection(url, login, password)) {
 			return execute(con, false, query, dbParams);
-		} finally {
-			if (con != null) {
-				con.close();
-			}
 		}
 	}
 
 	public ArrayList<HashMap<String, Object>> executeCall(String query, DBParameter... params)
 		throws SQLException {
-		Connection con = null;
-		try {
-			con = DriverManager.getConnection(url, login, password);
+		try (Connection con = DriverManager.getConnection(url, login, password)) {
 			return execute(con, true, query, params);
-		} finally {
-			if (con != null) {
-				con.close();
-			}
 		}
 	}
 
@@ -196,17 +171,17 @@ public final class DBUtility {
 													  String query, DBParameter... params) throws
 		SQLException {
 		int i = 1;
-		ArrayList<HashMap<String, Object>> values = new ArrayList<HashMap<String, Object>>();
-		ArrayList<Integer> outParamIndexes = new ArrayList<Integer>();
+		ArrayList<HashMap<String, Object>> values = new ArrayList<>();
+		ArrayList<Integer> outParamIndexes = new ArrayList<>();
 		if (fixAutoCommitIssue) {
 			con.setAutoCommit(false);
 		}
 		PreparedStatement statement = null;
 		try {
 			ArrayList<Pair<DBParameter, Integer>> sqlParams = getSqlTypes(params);
-			String preparedQuery = setNullAsSubstitution? replaceNulls(query, sqlParams) : query;
-			statement = isCallable ? con.prepareCall(preparedQuery) : 
-						con.prepareStatement(preparedQuery);
+			String preparedQuery = setNullAsSubstitution ? replaceNulls(query, sqlParams) : query;
+			statement = isCallable ? con.prepareCall(preparedQuery)
+						: con.prepareStatement(preparedQuery);
 
 			for (Pair<DBParameter, Integer> p : sqlParams) {
 				DBParameter param = p.getLeft();
@@ -228,14 +203,8 @@ public final class DBUtility {
 				}
 			}
 			if (statement.execute()) {
-				ResultSet rs = null;
-				try {
-					rs = statement.getResultSet();
+				try (ResultSet rs = statement.getResultSet()) {
 					values = convertResultSetToHashMaps(rs, converters);
-				} finally {
-					if (rs != null) {
-						rs.close();
-					}
 				}
 			}
 			for (int index : outParamIndexes) {
@@ -259,11 +228,11 @@ public final class DBUtility {
 	public static ArrayList<HashMap<String, Object>> convertResultSetToHashMaps(ResultSet rs,
 																				Map<Class, DBTypeConverter> converters)
 		throws SQLException {
-		ArrayList<HashMap<String, Object>> values = new ArrayList<HashMap<String, Object>>();
+		ArrayList<HashMap<String, Object>> values = new ArrayList<>();
 		if (rs != null) {
 			ResultSetMetaData metaData = rs.getMetaData();
 			while (rs.next()) {
-				HashMap<String, Object> record = new HashMap<String, Object>();
+				HashMap<String, Object> record = new HashMap<>();
 				for (int i = 1; i <= metaData.getColumnCount(); ++i) {
 					String name = metaData.getColumnName(i);
 					Object data = rs.getObject(i);
@@ -313,29 +282,26 @@ public final class DBUtility {
 		try {
 			Driver loadDriver = (Driver) Class.forName(urlOrDriver).newInstance();
 			DriverManager.registerDriver(loadDriver);
-		} catch (InstantiationException ex) {
-			LOG.log(Level.SEVERE, ownStack(ex));
-		} catch (IllegalAccessException ex) {
+		} catch (InstantiationException | IllegalAccessException ex) {
 			LOG.log(Level.SEVERE, ownStack(ex));
 		}
 
 	}
 
 	private String replaceNulls(String query, ArrayList<Pair<DBParameter, Integer>> sqlParams) {
-		ArrayList<Pair<DBParameter, Integer>> trimmedParams = new ArrayList<Pair<DBParameter, Integer>>();
+		ArrayList<Pair<DBParameter, Integer>> trimmedParams = new ArrayList<>();
 		String newQuery = query;
 		int index = 0;
-		for(Pair<DBParameter, Integer> param : sqlParams){
+		for (Pair<DBParameter, Integer> param : sqlParams) {
 			index = newQuery.indexOf('?', index);
-			if(param.getRight() != Types.NULL){
+			if (param.getRight() != Types.NULL) {
 				trimmedParams.add(param);
-			}
-			else{
-				
+			} else {
+
 				int maxIndex = newQuery.length() - 1;
-				if(index >= 0){
-					newQuery = newQuery.substring(0, index) + " NULL " + 
-							   (index == maxIndex ? "" : newQuery.substring(index + 1, newQuery.length()));	
+				if (index >= 0) {
+					newQuery = newQuery.substring(0, index) + " NULL "
+							   + (index == maxIndex ? "" : newQuery.substring(index + 1, newQuery.length()));
 				}
 			}
 			++index;
@@ -346,7 +312,7 @@ public final class DBUtility {
 	}
 
 	private ArrayList<Pair<DBParameter, Integer>> getSqlTypes(DBParameter[] params) {
-		ArrayList<Pair<DBParameter, Integer>> out = new ArrayList<Pair<DBParameter, Integer>>();
+		ArrayList<Pair<DBParameter, Integer>> out = new ArrayList<>();
 		if (params != null) {
 			for (DBParameter p : params) {
 				Object param = p.getLeft();
@@ -368,7 +334,7 @@ public final class DBUtility {
 						}
 					}
 				}
-				Pair<DBParameter, Integer> pair = new Pair<DBParameter, Integer>(p, type);
+				Pair<DBParameter, Integer> pair = new Pair<>(p, type);
 				out.add(pair);
 			}
 		}

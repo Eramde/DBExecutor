@@ -32,13 +32,13 @@ import tk.sot_tech.misc.Pair;
  * @author sot
  * @param <T>
  */
-public class DBParameter<T> extends Pair<T, Boolean> {
+public class DBParameter extends Pair<Object, Boolean> {
 
 	public DBParameter() {
 		super(null, true);
 	}
 
-	public DBParameter(T data) {
+	public DBParameter(Object data) {
 		super(data, false);
 	}
 		
@@ -50,7 +50,7 @@ public class DBParameter<T> extends Pair<T, Boolean> {
 		return right;
 	}
 	
-	public void setData(T data){
+	public void setData(Object data){
 		setLeft(data);
 	}
 	
