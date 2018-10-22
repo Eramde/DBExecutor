@@ -76,7 +76,7 @@ public final class DBUtility {
 		DEFAULT_SQL_TYPE_MAP = Collections.unmodifiableMap(tmp);
 
 		HashMap<Class, DBTypeConverter> tmp0 = new HashMap<>();
-		tmp0.put(ResultSet.class, RESULT_SET_CONVERTER::convert);
+		tmp0.put(ResultSet.class, RESULT_SET_CONVERTER);
 		DEFAULT_CONVERTERS = Collections.unmodifiableMap(tmp0);
 	}
 
