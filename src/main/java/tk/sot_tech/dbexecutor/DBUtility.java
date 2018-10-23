@@ -53,7 +53,7 @@ public final class DBUtility {
 			return convertResultSetToHashMaps((ResultSet) data, null);
 		} catch (SQLException ex) {
 			LOG.log(Level.SEVERE, ownStack(ex));
-			return new ArrayList<HashMap<String, Object>>();
+			return new ArrayList<>();
 		}
 	};
 
@@ -123,7 +123,7 @@ public final class DBUtility {
 		return setNullAsSubstitution;
 	}
 
-	public DBUtility setSetNullAsSubstitution(boolean setNullAsSubstitution) {
+	public DBUtility setNullAsSubstitution(boolean setNullAsSubstitution) {
 		this.setNullAsSubstitution = setNullAsSubstitution;
 		return this;
 	}
