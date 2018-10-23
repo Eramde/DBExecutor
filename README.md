@@ -8,7 +8,7 @@ Advantages:
 # Usage
 ## Simple call
 You can simply use the library like this:
-```
+```java
 DBUtility dbu = DBUtility.create("jdbc.driver.Class")
     .setUrl("jdbc:somejdbcurl")
     .setCredentials("user", "password"); // or null
@@ -18,7 +18,7 @@ ArrayList<HashMap<String, Object>> result = dbu.executeQuery("select * from tabl
 Here result HashMap - is key-value presentation of single line.
 ## Out parameters
 You also can set OUT parameters by passing `DBParameter` arguments into `executeCall` function like this:
-```
+```java
 DBParameter in = new DBParameter("some value"), 
     out = new DBParameter(); //without argument, parameters is OUT by default
 dbu.executeCall("begin\n ? := someFunction(?) \n end;", out, in);
@@ -29,7 +29,7 @@ By calling `executeQuery` or `executeCall`, library executes statements in try-w
 so connection will be closed after database accepts operation (and data has beed recieved).
 If you need to perform some actions within one context, you can create connection, 
 pass it into library function and control it by yourself like this:
-```
+```java
 DBUtility dbu = DBUtility.create(null);
 Connection connection = null;
 try {
@@ -66,7 +66,7 @@ By default, library has mapping between these Java classes and SQL types:
 * Timestamp - TIMESTAMP
 
 But you can also add your custom map for classes (if jdbc driver support it) or replace existing by calling function `setCustomSqlType`:
-```
+```java
 DBUtility dbu = DBUtility.create(null)
     .setCustomSqlType(BigInteger.class, Types.BIGINT);
 ...
@@ -77,7 +77,7 @@ Library will set presented parameter as BIGINT SQL type, but there is no guarant
 Also you can add inline converter for SQL data, which has been **recieved** from DB (library can only convert only returned data and OUT parameters). 
 For example, you need to convert number to String or string to Date or something else, so, you create custom `DBTypeConverter`
 and register it in `setTypeConverter` function:
-```
+```java
 DBUtility dbu = DBUtility.create(null)
     .setTypeConverter(java.util.Date.class, new DBTypeConverter() {
         @Override
@@ -128,13 +128,13 @@ automatically find map for parameter, if null is present. So there is two ways:
 
 In last case library will modify request and replace `?` (parameter place) by string `null`. 
 Example:
-```
+```java
 String name = getName(); //returnes null
 dbu.setNullAsSubstitution(true);
 dbu.executeQuery("select * from table where id = ? or name = ?", 10, name);
 ```
 In this example function `getName()` returns null, so library will modify request to this:
-```
+```sql
 select * from table where id = ? or name = null
 ```
 If you use literal `?` somewhere in your request, there will be problem, because library replaces this char, and I don't know how to fix it.
